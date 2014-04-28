@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ru">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <title>Где жить хорошо?</title>
+        <style>
+            body {
+                padding: 0;
+                margin: 0;
+            }
+            html, body, #map {
+                height: 100%;
+            }
+        </style>
+        <script src="https://code.jquery.com/jquery-1.11.0.min.js"></script>
+        <script src="https://code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+
+        <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css"/>
+        <script src="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+
+        <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.css" />
+        <script src="http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.js"></script>
+
+        <script src="http://ajax.aspnetcdn.com/ajax/mobileservices/MobileServices.Web-1.1.3.min.js"></script>
+        <script>
+            var client = new WindowsAzure.MobileServiceClient(
+                "https://goodplacetolive.azure-mobile.net/",
+                "nlCsTQnlhqUbIShsbuNFzAWdxCWBnA13"
+            );
+        </script>
+
+        <!-- Latest compiled and minified CSS -->
+        <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+
+        <!-- Optional theme -->
+        <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
+
+        <!-- Latest compiled and minified JavaScript -->
+        <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+
+        <style>
+            .leaflet-top {
+                top:  70px !important;
+            }
+            #message_area {
+                background: white;
+                border: 2px solid gray;
+                border-radius: 5px;
+                top: 80px;
+                width: 260px;
+                position: absolute;
+                height: 80px;
+                z-index: 100;
+                left: 20px;
+                padding:  7px;
+            }
+            #message_area span {
+                font-size:  11px;
+            }
+        </style>
+    </head>
+    <body>
+
+    <div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="#">Где жить хорошо?</a>
+        </div>
+        <div class="collapse navbar-collapse">
+          <ul class="nav navbar-nav">
+            <li class="active"><a href="#">Главная</a></li>
+            <li><a href="/privacy.html">Политика конфиденциальности</a></li>
+            <li><a target="_blank" href="http://apps.microsoft.com/windows/app/93ee0a9d-84aa-4ee2-94e4-dbbb2912a09b">Windows 8.1</a></li>
+            <li><a href="#wp8">Windows Phone 8.1</a></li>
+          </ul>
+        </div><!--/.nav-collapse -->
+      </div>
+    </div>
+
+    <div id="message_area">
+        <span>Доступно объектов - <span id="objects_count">0</span></span><br/>
+        <span>Сумма заказов - <span id="sum_count">0</span> руб.</span><br/>
+        <span>Коэффициент привлекательности - <span id="maink">0</span></span>
+    </div>
+
+    <div id="map"></div>
+
+        <script>
+            var current_lines = [];
+            var all_items = [];
+            var click_circle = null;
+
+            var myCoordinates = null;
+
+            var map = L.map('map', { zoomControl: false });
+            var openStreetMap = L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 18
+            });
+
+            //var googleMap = new L.Google("ROADMAP", {top: true});
+
+            openStreetMap.on('load', function (e) {
+                //alert("Loaded");
+                //jQuery("#loading img").hide();
+                //jQuery("#loading").hide();
+
+                //console.dir(e);
+            });
+            map.addLayer(openStreetMap);
+            openStreetMap.addTo(map);
+            //.addTo(map);
+
+            new L.Control.Zoom({ position: 'topright' }).addTo(map);
+
+            function onLocationFound(e) {
+                var radius = e.accuracy / 2;
+                myCoordinates = e.latlng;
+                /*L.marker(e.latlng).addTo(map)
+                .bindPopup("You are within " + radius + " meters from this point").openPopup();*/
+
+                L.circle(e.latlng, radius).addTo(map);
+                L.circle(e.latlng, 1).addTo(map);
+
+                AddMarkers();
+            }
+
+            function onLocationError(e) {
+                alert(e.message);
+                AddMarkers();
+            }
+
+            map.on('locationfound', onLocationFound);
+            map.on('locationerror', onLocationError);
+
+            map.locate({ setView: true, maxZoom: 16 });
+
+            var MapTiles = {
+                "OpenStreetMap": openStreetMap
+            };
+
+            function onMapClick(e) {
+                try {
+                    try {
+                        for (var k in current_lines) {
+                            map.removeLayer(current_lines[k]);
+                        }
+                        current_lines = [];
+                        if (click_circle != null) {
+                            map.removeLayer(click_circle);
+                        }
+                    } catch (ex) { }
+                    //alert("You clicked the map at " + e.latlng);
+                    click_circle = L.circle(e.latlng, 3000, { color: "#2AA300" });
+                    click_circle.addTo(map);
+
+                    for (var k in all_items) {
+                        if (e.latlng.distanceTo(all_items[k].placeLatLon) < 3001) {
+                            //console.log(all_items[k]);
+                            var polyline = L.polyline([all_items[k].placeLatLon, e.latlng], { color: 'green' }).addTo(map);
+                            polyline.bindPopup(getLinePopup(all_items[k]));
+                            current_lines.push(polyline);
+                        }
+                    }
+
+                    updateSumData(e.latlng);
+                } catch (ex) {
+                    console.dir(ex);
+                }
+            }
+            map.on('click', onMapClick);
+
+            function AddMarkers() {
+
+                hospitalItemTable = client.getTable('HospitalAdultItem');
+
+                hospitalItemTable.read().then(function (hospitalItems) {
+                    listItems = $.map(hospitalItems, function (item) {
+                        var placeLatLon = L.latLng(item.Y.replace(',', '.'), item.X.replace(',', '.'));
+                        item.placeLatLon = placeLatLon;
+                        L.marker(placeLatLon).addTo(map).bindPopup("<b>" + item.FullName + "</b><br/>" + item.Address + "<br/>Сумма контрактов - " + Math.round(item.ContractSum) + " руб.<br/>");
+                        if (myCoordinates != null) {
+                            var polyline = L.polyline([placeLatLon, myCoordinates], { color: 'red' }).addTo(map);
+                            polyline.bindPopup(getLinePopup(item));
+                        }
+                        all_items.push(item);
+                    });
+                    updateSumData(myCoordinates);
+                });
+
+                var GroupTiles = {
+                    //"#{t("index.allBeacons")}": ibeacons,
+                };
+                L.control.layers(MapTiles, GroupTiles).addTo(map);
+            }
+
+            function calcCoef(sum, distance) {
+                var k = 0;
+                if ((distance != null) && (distance > 0)) {
+                    k = sum / distance;
+                }
+                return Math.round(k);
+            }
+
+            function getLinePopup(item) {
+                var popup = L.popup()
+                            .setContent("<p><b>Расстояние</b> - " + Math.round(myCoordinates.distanceTo(item.placeLatLon)) + "<br/>" +
+                            "<b>Сумма контрактов</b> - " + Math.round(item.ContractSum) + " руб.</br>" +
+                            "<b>Коэффициент привлекательности</b> - " + calcCoef(item.ContractSum, myCoordinates.distanceTo(item.placeLatLon)) + "</br>" +
+                            "</p>");
+                return popup;
+            }
+
+            function updateSumData(currentPlace) {
+                var maink = 0;
+                var objects_count = 0;
+                var sum_count = 0;
+
+                try {
+                    for (var k in all_items) {
+                        if (currentPlace.distanceTo(all_items[k].placeLatLon) < 3001) {
+                            //console.log(all_items[k]);
+                            maink = maink + calcCoef(all_items[k].ContractSum, currentPlace.distanceTo(all_items[k].placeLatLon));
+                            objects_count++;
+                            sum_count = sum_count + Math.round(all_items[k].ContractSum);
+                        }
+                    }
+                } catch (ex) {
+                    console.dir(ex);
+                }
+
+                $("#objects_count").html(objects_count);
+                $("#sum_count").html(sum_count);
+                $("#maink").html(maink);
+            }
+        </script>
+    </body>
+</html>
