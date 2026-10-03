@@ -1,0 +1,2 @@
+import { defineConfig } from '@playwright/test';
+export default defineConfig({testDir:'./tests',testMatch:'**/ui.spec.js', use:{launchOptions:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? {executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH} : {},baseURL:'http://127.0.0.1:4173', screenshot:'on', viewport:{width:1280,height:800}}, webServer:{command:'npm run preview -- --host 127.0.0.1',port:4173,reuseExistingServer:false}, reporter:[['list'],['html',{open:'never'}]]});
